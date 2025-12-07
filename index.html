@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0d1117">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="GitMobile">
+    <meta name="description" content="Professional GitHub Client for Mobile">
+    <title>GitMobile</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-app: #0d1117;
+            --bg-panel: #161b22;
+            --bg-hover: #21262d;
+            --border: #30363d;
+            --primary: #238636;
+            --primary-active: #2ea043;
+            --danger: #da3633;
+            --text-main: #e6edf3;
+            --text-muted: #7d8590;
+            --radius-btn: 6px;
+            --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-code: 'JetBrains Mono', monospace;
+            --header-height: 60px;
+            --z-toast: 9999;
+            --z-modal: 5000;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+        
+        html, body {
+            margin: 0; padding: 0;
+            background: var(--bg-app); color: var(--text-main);
+            font-family: var(--font-ui);
+            height: 100vh; width: 100vw; overflow: hidden;
+            user-select: none; -webkit-user-select: none;
+            overscroll-behavior: none;
+        }
+
+        input, textarea, .selectable-text {
+            user-select: text; -webkit-user-select: text;
+        }
+
+        .hidden { display: none !important; }
+        .flex { display: flex; }
+        .flex-col { flex-direction: column; }
+        .items-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .gap-2 { gap: 0.5rem; }
+        .w-full { width: 100%; }
+        .text-sm { font-size: 14px; }
+        .text-xs { font-size: 12px; }
+        .text-muted { color: var(--text-muted); }
+        .font-bold { font-weight: 600; }
+
+        .btn {
+            background: var(--bg-hover);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 10px 16px;
+            border-radius: var(--radius-btn);
+            font-size: 14px; font-weight: 600;
+            cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s;
+            touch-action: manipulation;
+        }
+        
+        .btn:active { transform: scale(0.96); background: #30363d; }
+        
+        .btn-primary { background: var(--primary); border-color: rgba(255,255,255,0.1); color: white; }
+        .btn-primary:active { background: #1a7f37; }
+        
+        .btn-danger { background: rgba(218,54,51,0.1); color: #f85149; border-color: rgba(218,54,51,0.4); }
+        .btn-danger:active { background: rgba(218,54,51,0.2); }
+        
+        .btn-icon { width: 40px; height: 40px; padding: 0; flex-shrink: 0; }
+
+        input, select, textarea {
+            background: var(--bg-app); border: 1px solid var(--border); color: var(--text-main);
+            padding: 12px; border-radius: 6px; width: 100%;
+            font-family: inherit;
+            font-size: 16px; 
+            transition: border-color 0.2s;
+        }
+        input:focus, textarea:focus { border-color: #58a6ff; }
+
+        .view {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-app); display: flex; flex-direction: column;
+            opacity: 0; pointer-events: none; transform: scale(0.98);
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        .view.active { opacity: 1; pointer-events: all; transform: scale(1); z-index: 10; }
+
+        header {
+            height: var(--header-height); background: var(--bg-panel); border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between; padding: 0 16px;
+            flex-shrink: 0; padding-top: env(safe-area-inset-top); height: calc(var(--header-height) + env(safe-area-inset-top));
+        }
+
+        .scroll-area { flex: 1; overflow-y: auto; padding: 16px; -webkit-overflow-scrolling: touch; }
+
+        .card {
+            background: var(--bg-panel); border: 1px solid var(--border);
+            border-radius: 0; padding: 16px; margin-bottom: 1px;
+        }
+        
+        .list-item {
+            background: var(--bg-panel); border: 1px solid var(--border);
+            padding: 14px; margin-bottom: 8px;
+            display: flex; align-items: center; justify-content: space-between;
+            transition: background 0.2s;
+        }
+        .list-item:active { background: var(--bg-hover); transform: scale(0.99); }
+
+        .editor-wrapper {
+            flex: 1; display: flex; position: relative; overflow: hidden;
+            background: #0d1117; font-family: var(--font-code); font-size: 13px;
+        }
+        .gutter {
+            width: 45px; background: #0d1117; border-right: 1px solid var(--border);
+            color: #484f58; text-align: right; padding: 10px 8px; user-select: none;
+            line-height: 20px;
+        }
+        .code-area {
+            flex: 1; background: transparent; color: #e6edf3; border: none; padding: 10px;
+            font-family: inherit; font-size: 13px; line-height: 20px;
+            resize: none; white-space: pre; overflow: auto; outline: none;
+            tab-size: 2;
+        }
+
+        .loader {
+            width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white; border-radius: 50%;
+            animation: spin 0.8s linear infinite; display: none;
+        }
+        .btn.loading .loader { display: block; }
+        .btn.loading span, .btn.loading i { display: none; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        #toast-container {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            z-index: var(--z-toast); display: flex; flex-direction: column; gap: 10px;
+            width: 90%; max-width: 400px; pointer-events: none;
+        }
+        .toast {
+            background: var(--bg-panel); color: white; padding: 12px 16px;
+            border-radius: 8px; border: 1px solid var(--border);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); opacity: 0;
+            display: flex; align-items: center; gap: 10px; font-weight: 500;
+        }
+
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); backdrop-filter: blur(2px);
+            z-index: var(--z-modal); display: none; align-items: center; justify-content: center;
+        }
+        .modal-overlay.open { display: flex; animation: fadeIn 0.2s; }
+        .modal-box {
+            background: var(--bg-panel); border: 1px solid var(--border);
+            width: 90%; max-width: 420px; padding: 24px; border-radius: 12px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    </style>
+</head>
+<body>
+
+    <div id="toast-container"></div>
+
+    <div id="view-login" class="view active">
+        <div style="margin: auto; width: 100%; max-width: 340px; padding: 20px; text-align: center;">
+            <i data-lucide="github" style="width: 64px; height: 64px; margin-bottom: 24px; color: white;"></i>
+            <h1 style="margin: 0 0 32px 0; font-size: 28px; letter-spacing: -1px;">GitMobile</h1>
+            
+            <div style="text-align: left; margin-bottom: 20px;">
+                <label class="text-xs font-bold text-muted" style="letter-spacing: 1px;">PERSONAL ACCESS TOKEN</label>
+                <input type="password" id="input-token" placeholder="ghp_xxxxxxxxxxxx..." style="margin-top: 8px;">
+            </div>
+            
+            <button class="btn btn-primary w-full" id="btn-login" style="padding: 14px;">
+                <div class="loader"></div>
+                <span>Sign In</span>
+            </button>
+        </div>
+    </div>
+
+    <div id="view-dashboard" class="view">
+        <header>
+            <div class="flex items-center gap-2">
+                <img id="user-avatar" src="" style="width: 32px; height: 32px; border-radius: 50%; background: var(--bg-hover);">
+                <div>
+                    <div id="user-login" class="font-bold text-sm">Loading...</div>
+                </div>
+            </div>
+            <button class="btn btn-icon" onclick="App.confirmLogout()" title="Logout">
+                <i data-lucide="log-out" style="width: 20px;"></i>
+            </button>
+        </header>
+        
+        <div class="scroll-area">
+            <div class="flex gap-2" style="margin-bottom: 24px;">
+                <div style="flex: 1; position: relative;">
+                    <i data-lucide="search" style="position: absolute; left: 12px; top: 12px; width: 16px; color: var(--text-muted);"></i>
+                    <input type="text" id="search-input" placeholder="Search..." style="padding-left: 38px;">
+                </div>
+                <select id="search-scope" style="width: auto; background: var(--bg-hover);">
+                    <option value="my">My Repos</option>
+                    <option value="global">Global</option>
+                </select>
+            </div>
+
+            <div class="flex justify-between items-center" style="margin-bottom: 12px;">
+                <h3 class="text-sm text-muted font-bold" style="margin: 0; text-transform: uppercase; letter-spacing: 1px;">Repositories</h3>
+                <button class="btn btn-primary" onclick="Modal.open('create')">
+                    <i data-lucide="plus" style="width: 16px;"></i> New
+                </button>
+            </div>
+
+            <div id="repo-list"></div>
+        </div>
+    </div>
+
+    <div id="view-repo" class="view">
+        <header>
+            <div class="flex items-center gap-2" style="overflow: hidden;">
+                <button class="btn btn-icon" onclick="Nav.to('dashboard')"><i data-lucide="arrow-left"></i></button>
+                <div style="overflow: hidden;">
+                    <div id="repo-title" class="font-bold" style="white-space: nowrap;">...</div>
+                    <div id="repo-branch" class="text-xs text-muted font-code">main</div>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button id="btn-fork" class="btn hidden" onclick="Repo.fork()">
+                    <div class="loader"></div> <i data-lucide="git-fork" style="width: 16px;"></i> Fork
+                </button>
+                <button class="btn btn-icon btn-danger" onclick="Repo.confirmDelete()">
+                    <i data-lucide="trash-2" style="width: 18px;"></i>
+                </button>
+            </div>
+        </header>
+
+        <div class="flex" style="background: var(--bg-panel); border-bottom: 1px solid var(--border);">
+            <button class="btn" style="flex:1; border:none; border-radius:0; background:transparent;" onclick="Repo.tab('files')" id="tab-files">Files</button>
+            <button class="btn" style="flex:1; border:none; border-radius:0; background:transparent;" onclick="Repo.tab('upload')" id="tab-upload">Upload</button>
+        </div>
+
+        <div id="content-files" class="scroll-area">
+            <div class="flex justify-between items-center" style="margin-bottom: 12px;">
+                <span class="text-xs text-muted font-bold">ROOT DIRECTORY</span>
+                <button class="btn" style="font-size: 12px; padding: 6px 12px;" onclick="Modal.open('new-file')">
+                    <i data-lucide="file-plus" style="width: 14px;"></i> New File
+                </button>
+            </div>
+            <div id="file-list"></div>
+        </div>
+
+        <div id="content-upload" class="scroll-area hidden">
+            <div style="border: 2px dashed var(--border); padding: 40px; text-align: center; border-radius: 8px; cursor: pointer;" onclick="document.getElementById('file-input').click()">
+                <i data-lucide="upload-cloud" style="width: 48px; height: 48px; color: var(--text-muted); margin-bottom: 10px;"></i>
+                <h3 style="margin: 0; font-size: 16px;">Select Folder</h3>
+                <p class="text-muted text-sm">Tap here to browse</p>
+                <input type="file" id="file-input" multiple webkitdirectory hidden>
+            </div>
+            
+            <div id="upload-stage" class="hidden" style="margin-top: 20px;">
+                <div class="flex justify-between items-center" style="margin-bottom: 10px;">
+                    <span class="font-bold">Queue</span>
+                    <span class="text-xs text-muted" id="file-count">0 files</span>
+                </div>
+                <input type="text" id="upload-msg" placeholder="Commit message (e.g., Initial commit)" value="Bulk upload from GitMobile">
+                <button id="btn-execute-upload" class="btn btn-primary w-full" style="margin-top: 12px; padding: 12px;" onclick="Repo.upload()">
+                    <div class="loader"></div> <span>Start Upload</span>
+                </button>
+                <div id="upload-logs" class="text-xs font-code text-muted" style="margin-top: 16px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="view-editor" class="view" style="z-index: 50;">
+        <header>
+            <div class="flex items-center gap-2">
+                <button class="btn btn-icon" onclick="Editor.close()"><i data-lucide="x"></i></button>
+                <span id="editor-filename" class="font-code text-sm font-bold">filename.js</span>
+            </div>
+            <button id="btn-save" class="btn btn-primary" onclick="Editor.save()">
+                <div class="loader"></div> <span>Save</span>
+            </button>
+        </header>
+        <div style="padding: 10px; background: var(--bg-panel); border-bottom: 1px solid var(--border);">
+            <input type="text" id="editor-commit" placeholder="What did you change?" style="padding: 8px; font-size: 16px;">
+        </div>
+        <div class="editor-wrapper">
+            <div class="gutter" id="editor-gutter">1</div>
+            <textarea class="code-area" id="code-input" spellcheck="false" wrap="off"></textarea>
+        </div>
+    </div>
+
+    <div id="modal-wrapper" class="modal-overlay">
+        <div class="modal-box">
+            <h3 id="modal-title" style="margin-top: 0; margin-bottom: 20px;">Title</h3>
+            <div id="modal-content"></div>
+            <div class="flex justify-end gap-2" style="margin-top: 24px;">
+                <button class="btn" onclick="Modal.close()">Cancel</button>
+                <button id="modal-confirm-btn" class="btn btn-primary">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const State = {
+            token: localStorage.getItem('gm_token'),
+            user: null,
+            repos: [],
+            currRepo: null,
+            files: []
+        };
+        const API = 'https://api.github.com';
+        const $ = id => document.getElementById(id);
+
+        const Toast = {
+            show: (msg, type='info') => {
+                const c = $('toast-container');
+                const el = document.createElement('div');
+                el.className = 'toast';
+                el.style.borderLeft = `4px solid ${type === 'error' ? 'var(--danger)' : 'var(--primary)'}`;
+                el.innerHTML = `<span>${type==='error'?'⚠️':'✅'}</span> <span>${msg}</span>`;
+                c.appendChild(el);
+                gsap.to(el, { opacity: 1, y: -10, duration: 0.3 });
+                setTimeout(() => {
+                    gsap.to(el, { opacity: 0, y: 10, duration: 0.3, onComplete: () => el.remove() });
+                }, 3000);
+            }
+        };
+
+        const Loader = {
+            on: (id) => $(id).classList.add('loading'),
+            off: (id) => $(id).classList.remove('loading')
+        };
+
+        const Nav = {
+            to: (id) => {
+                document.querySelectorAll('.view').forEach(v => {
+                    v.classList.remove('active');
+                    gsap.to(v, { opacity: 0, duration: 0.2 });
+                });
+                const t = $(`view-${id}`);
+                t.classList.add('active');
+                gsap.fromTo(t, { opacity: 0, scale: 0.98 }, { opacity: 1, scale: 1, duration: 0.3 });
+            }
+        };
+
+        const Modal = {
+            el: $('modal-wrapper'),
+            open: (type) => {
+                const content = $('modal-content');
+                const title = $('modal-title');
+                const btn = $('modal-confirm-btn');
+                
+                Modal.el.classList.add('open');
+                
+                if (type === 'create') {
+                    title.textContent = "Create Repository";
+                    content.innerHTML = `
+                        <label class="text-xs font-bold text-muted">NAME</label>
+                        <input type="text" id="new-repo-name" placeholder="my-awesome-project" style="margin-bottom:10px;">
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" id="new-repo-private" checked style="width:auto;"> Private Repository
+                        </label>
+                    `;
+                    btn.onclick = Repo.create;
+                    btn.textContent = "Create";
+                    btn.className = "btn btn-primary";
+                } else if (type === 'new-file') {
+                    title.textContent = "New File";
+                    content.innerHTML = `
+                        <label class="text-xs font-bold text-muted">PATH / FILENAME</label>
+                        <input type="text" id="new-filename" placeholder="src/utils/helper.js">
+                    `;
+                    btn.onclick = Editor.initNew;
+                    btn.textContent = "Open Editor";
+                    btn.className = "btn btn-primary";
+                }
+            },
+            close: () => Modal.el.classList.remove('open')
+        };
+
+        const api = async (end, opts={}) => {
+            const url = end.startsWith('http') ? end : `${API}${end}`;
+            try {
+                const res = await fetch(url, {
+                    ...opts,
+                    headers: {
+                        'Authorization': `token ${State.token}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        ...opts.headers
+                    }
+                });
+                if (res.status === 204) return null;
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'Error');
+                return data;
+            } catch(e) {
+                Toast.show(e.message, 'error');
+                throw e;
+            }
+        };
+
+        const App = {
+            init: async () => {
+                lucide.createIcons();
+                if (State.token) {
+                    Loader.on('btn-login');
+                    try {
+                        State.user = await api('/user');
+                        App.setupDash();
+                        Nav.to('dashboard');
+                        Repo.list();
+                    } catch(e) { localStorage.clear(); }
+                    finally { Loader.off('btn-login'); }
+                }
+            },
+            login: async () => {
+                const t = $('input-token').value.trim();
+                if (!t) return Toast.show('Token required', 'error');
+                State.token = t;
+                Loader.on('btn-login');
+                try {
+                    State.user = await api('/user');
+                    localStorage.setItem('gm_token', t);
+                    App.setupDash();
+                    Nav.to('dashboard');
+                    Repo.list();
+                } catch(e) { State.token = null; }
+                finally { Loader.off('btn-login'); }
+            },
+            confirmLogout: () => {
+                if(confirm('Are you sure you want to logout? Token will be removed.')) {
+                    localStorage.clear();
+                    location.reload();
+                }
+            },
+            setupDash: () => {
+                $('user-login').textContent = State.user.login;
+                $('user-avatar').src = State.user.avatar_url;
+            }
+        };
+
+        const Repo = {
+            list: async () => {
+                const scope = $('search-scope').value;
+                const q = $('search-input').value;
+                const list = $('repo-list');
+                list.innerHTML = '<div style="padding:20px; text-align:center;">Loading...</div>';
+
+                try {
+                    let items = [];
+                    if (scope === 'my') {
+                        if (State.repos.length === 0) State.repos = await api('/user/repos?sort=updated&per_page=50');
+                        items = State.repos.filter(r => r.name.toLowerCase().includes(q.toLowerCase()));
+                    } else {
+                        if (q.length < 3) return list.innerHTML = '<div style="padding:20px;text-align:center;">Type 3+ chars to search globally</div>';
+                        const res = await api(`/search/repositories?q=${encodeURIComponent(q)}&per_page=20`);
+                        items = res.items;
+                    }
+
+                    list.innerHTML = '';
+                    items.forEach(r => {
+                        const el = document.createElement('div');
+                        el.className = 'list-item';
+                        el.innerHTML = `
+                            <div>
+                                <div style="font-weight:600; color:#58a6ff;">${r.full_name}</div>
+                                <div class="text-muted text-xs">${r.description || ''}</div>
+                            </div>
+                            <i data-lucide="chevron-right" style="color: var(--text-muted);"></i>
+                        `;
+                        el.onclick = () => Repo.open(r);
+                        list.appendChild(el);
+                    });
+                    lucide.createIcons();
+                } catch(e) { list.innerHTML = '<div style="padding:20px;">Failed to load.</div>'; }
+            },
+            create: async () => {
+                const name = $('new-repo-name').value;
+                if (!name) return;
+                const btn = $('modal-confirm-btn');
+                btn.classList.add('loading');
+                try {
+                    await api('/user/repos', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            name,
+                            private: $('new-repo-private').checked,
+                            auto_init: true
+                        })
+                    });
+                    Toast.show('Repo created!');
+                    Modal.close();
+                    State.repos = []; 
+                    Repo.list();
+                } catch(e) {} finally { btn.classList.remove('loading'); }
+            },
+            open: (r) => {
+                State.currRepo = r;
+                $('repo-title').textContent = r.full_name;
+                $('repo-branch').textContent = r.default_branch;
+                const isMine = r.owner.login === State.user.login;
+                $('btn-fork').classList.toggle('hidden', isMine);
+                Nav.to('repo');
+                Repo.tab('files');
+                Repo.loadFiles();
+            },
+            fork: async () => {
+                Loader.on('btn-fork');
+                try {
+                    await api(`/repos/${State.currRepo.full_name}/forks`, { method: 'POST' });
+                    Toast.show('Forking started...');
+                    setTimeout(() => {
+                        State.repos = [];
+                        Nav.to('dashboard');
+                        Repo.list();
+                    }, 4000);
+                } catch(e){} finally { Loader.off('btn-fork'); }
+            },
+            confirmDelete: async () => {
+                const name = State.currRepo.full_name;
+                if (prompt(`Type "${name}" to DELETE this repo permanently.`) === name) {
+                    try {
+                        await api(`/repos/${name}`, { method: 'DELETE' });
+                        Toast.show('Deleted.');
+                        State.repos = [];
+                        Nav.to('dashboard');
+                        Repo.list();
+                    } catch(e){}
+                }
+            },
+            tab: (t) => {
+                $('content-files').classList.toggle('hidden', t !== 'files');
+                $('content-upload').classList.toggle('hidden', t !== 'upload');
+                $('tab-files').style.borderBottom = t === 'files' ? '2px solid var(--primary)' : 'none';
+                $('tab-upload').style.borderBottom = t === 'upload' ? '2px solid var(--primary)' : 'none';
+            },
+            loadFiles: async () => {
+                const el = $('file-list');
+                el.innerHTML = '<div style="padding:20px;">Loading tree...</div>';
+                try {
+                    const res = await api(`/repos/${State.currRepo.full_name}/git/trees/${State.currRepo.default_branch}?recursive=1`);
+                    const tree = res.tree.sort((a,b) => (a.type === b.type) ? a.path.localeCompare(b.path) : (a.type === 'tree' ? -1 : 1));
+                    el.innerHTML = '';
+                    tree.forEach(item => {
+                        const row = document.createElement('div');
+                        row.className = 'list-item';
+                        row.style.paddingLeft = `${(item.path.split('/').length * 12)}px`;
+                        row.innerHTML = `
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="${item.type==='tree'?'folder':'file'}" style="width:14px; color:${item.type==='tree'?'#58a6ff':'var(--text-muted)'}"></i>
+                                <span class="font-code text-sm">${item.path.split('/').pop()}</span>
+                            </div>
+                        `;
+                        if (item.type === 'blob') row.onclick = () => Editor.open(item);
+                        el.appendChild(row);
+                    });
+                    lucide.createIcons();
+                } catch(e) { el.innerHTML = '<div style="padding:20px;">Empty or Error.</div>'; }
+            },
+            upload: async () => {
+                if (State.files.length === 0) return Toast.show('No files selected', 'error');
+                Loader.on('btn-execute-upload');
+                const log = $('upload-logs');
+                log.innerHTML = 'Starting...<br>';
+                
+                try {
+                    for (let f of State.files) {
+                        const path = f.webkitRelativePath.split('/').slice(1).join('/');
+                        log.innerHTML += `Uploading: ${path}... `;
+                        
+                        const reader = new FileReader();
+                        const content = await new Promise(r => {
+                            reader.onload = () => r(reader.result.split(',')[1]);
+                            reader.readAsDataURL(f);
+                        });
+
+                        let sha;
+                        try { const ex = await api(`/repos/${State.currRepo.full_name}/contents/${path}`); sha = ex.sha; } catch(e){}
+
+                        await api(`/repos/${State.currRepo.full_name}/contents/${path}`, {
+                            method: 'PUT',
+                            body: JSON.stringify({
+                                message: $('upload-msg').value,
+                                content, sha,
+                                branch: State.currRepo.default_branch
+                            })
+                        });
+                        log.innerHTML += 'OK<br>';
+                    }
+                    Toast.show('Upload complete!');
+                    Repo.tab('files');
+                    Repo.loadFiles();
+                } catch(e) { log.innerHTML += 'ERROR'; }
+                finally { Loader.off('btn-execute-upload'); }
+            }
+        };
+
+        const Editor = {
+            file: null,
+            open: async (item) => {
+                Nav.to('editor');
+                $('editor-filename').textContent = item.path;
+                $('code-input').value = 'Loading content...';
+                Loader.on('btn-save');
+                Editor.file = item;
+                
+                try {
+                    const data = await api(`/repos/${State.currRepo.full_name}/contents/${item.path}`);
+                    Editor.file.sha = data.sha;
+                    const content = decodeURIComponent(escape(window.atob(data.content.replace(/\n/g, ""))));
+                    $('code-input').value = content;
+                    Editor.updateGutter();
+                } catch(e) { $('code-input').value = 'Could not load content (Binary/Large).'; }
+                finally { Loader.off('btn-save'); }
+            },
+            initNew: () => {
+                const name = $('new-filename').value;
+                if(!name) return;
+                Modal.close();
+                Nav.to('editor');
+                $('editor-filename').textContent = name;
+                $('code-input').value = '';
+                $('editor-commit').value = 'Create ' + name;
+                Editor.file = { path: name, isNew: true };
+                Editor.updateGutter();
+            },
+            close: () => Nav.to('repo'),
+            save: async () => {
+                const content = $('code-input').value;
+                Loader.on('btn-save');
+                try {
+                    const b64 = window.btoa(unescape(encodeURIComponent(content)));
+                    const body = {
+                        message: $('editor-commit').value || 'Update',
+                        content: b64,
+                        branch: State.currRepo.default_branch
+                    };
+                    if (!Editor.file.isNew && Editor.file.sha) body.sha = Editor.file.sha;
+                    const res = await api(`/repos/${State.currRepo.full_name}/contents/${Editor.file.path}`, {
+                        method: 'PUT', body: JSON.stringify(body)
+                    });
+                    Editor.file.sha = res.content.sha;
+                    Editor.file.isNew = false;
+                    Toast.show('Saved successfully!');
+                } catch(e){} finally { Loader.off('btn-save'); }
+            },
+            updateGutter: () => {
+                const lines = $('code-input').value.split('\n').length;
+                $('editor-gutter').innerHTML = Array(lines).fill(0).map((_,i)=>i+1).join('\n');
+            }
+        };
+
+        $('btn-login').onclick = App.login;
+        $('search-scope').onchange = Repo.list;
+        $('search-input').onkeyup = (e) => { if(e.key === 'Enter') Repo.list(); };
+        $('file-input').onchange = (e) => {
+            State.files = Array.from(e.target.files).filter(f => !['node_modules','.git'].some(x => f.webkitRelativePath.includes(x)));
+            $('file-count').textContent = `${State.files.length} files`;
+            $('upload-stage').classList.remove('hidden');
+        };
+        
+        const code = $('code-input');
+        const gut = $('editor-gutter');
+        code.addEventListener('input', Editor.updateGutter);
+        code.addEventListener('scroll', () => gut.scrollTop = code.scrollTop);
+        code.addEventListener('keydown', e => {
+            if(e.key === 'Tab') {
+                e.preventDefault();
+                document.execCommand('insertText', false, '  ');
+            }
+        });
+
+        App.init();
+
+    </script>
+</body>
+</html>
+
+
